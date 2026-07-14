@@ -221,17 +221,7 @@ export default function TemplateEditorScreen() {
       />
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
-        <Button
-          title="이 템플릿으로 루틴 만들기"
-          onPress={async () => {
-            if (steps.length === 0) {
-              Alert.alert('단계 필요', '최소 1개 단계를 추가하세요.');
-              return;
-            }
-            const routine = await createRoutineFromTemplate(template.id);
-            if (routine) router.replace(`/routine/${routine.id}`);
-          }}
-        />
+        <Button title="완료" onPress={() => router.replace('/templates')} />
       </View>
 
       <StepEditorSheet
