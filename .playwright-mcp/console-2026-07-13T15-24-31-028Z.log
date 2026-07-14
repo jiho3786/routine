@@ -1,0 +1,33 @@
+[     792ms] Error: Minified React error #527; visit https://react.dev/errors/527?args[]=19.2.3&args[]=19.2.7 for the full message or use the non-minified dev environment for full errors and additional helpful warnings.
+    at http://localhost:8765/_expo/static/js/web/entry-789e45a6df74c5e729a241e726185755.js:271:173595
+    at f (http://localhost:8765/_expo/static/js/web/entry-789e45a6df74c5e729a241e726185755.js:2:2068)
+    at a (http://localhost:8765/_expo/static/js/web/entry-789e45a6df74c5e729a241e726185755.js:2:1564)
+    at i (http://localhost:8765/_expo/static/js/web/entry-789e45a6df74c5e729a241e726185755.js:2:586)
+    at http://localhost:8765/_expo/static/js/web/entry-789e45a6df74c5e729a241e726185755.js:260:259
+    at f (http://localhost:8765/_expo/static/js/web/entry-789e45a6df74c5e729a241e726185755.js:2:2068)
+    at a (http://localhost:8765/_expo/static/js/web/entry-789e45a6df74c5e729a241e726185755.js:2:1564)
+    at i (http://localhost:8765/_expo/static/js/web/entry-789e45a6df74c5e729a241e726185755.js:2:586)
+    at http://localhost:8765/_expo/static/js/web/entry-789e45a6df74c5e729a241e726185755.js:259:248
+    at f (http://localhost:8765/_expo/static/js/web/entry-789e45a6df74c5e729a241e726185755.js:2:2068)
+[  203696ms] Error: Minified React error #527; visit https://react.dev/errors/527?args[]=19.2.3&args[]=19.2.7 for the full message or use the non-minified dev environment for full errors and additional helpful warnings.
+    at http://localhost:8765/_expo/static/js/web/entry-789e45a6df74c5e729a241e726185755.js:271:173595
+    at f (http://localhost:8765/_expo/static/js/web/entry-789e45a6df74c5e729a241e726185755.js:2:2068)
+    at a (http://localhost:8765/_expo/static/js/web/entry-789e45a6df74c5e729a241e726185755.js:2:1564)
+    at i (http://localhost:8765/_expo/static/js/web/entry-789e45a6df74c5e729a241e726185755.js:2:586)
+    at http://localhost:8765/_expo/static/js/web/entry-789e45a6df74c5e729a241e726185755.js:260:259
+    at f (http://localhost:8765/_expo/static/js/web/entry-789e45a6df74c5e729a241e726185755.js:2:2068)
+    at a (http://localhost:8765/_expo/static/js/web/entry-789e45a6df74c5e729a241e726185755.js:2:1564)
+    at i (http://localhost:8765/_expo/static/js/web/entry-789e45a6df74c5e729a241e726185755.js:2:586)
+    at http://localhost:8765/_expo/static/js/web/entry-789e45a6df74c5e729a241e726185755.js:259:248
+    at f (http://localhost:8765/_expo/static/js/web/entry-789e45a6df74c5e729a241e726185755.js:2:2068)
+[  207677ms] Error: Minified React error #527; visit https://react.dev/errors/527?args[]=19.2.3&args[]=19.2.7 for the full message or use the non-minified dev environment for full errors and additional helpful warnings.
+    at http://localhost:8765/_expo/static/js/web/entry-789e45a6df74c5e729a241e726185755.js:271:173595
+    at f (http://localhost:8765/_expo/static/js/web/entry-789e45a6df74c5e729a241e726185755.js:2:2068)
+    at a (http://localhost:8765/_expo/static/js/web/entry-789e45a6df74c5e729a241e726185755.js:2:1564)
+    at i (http://localhost:8765/_expo/static/js/web/entry-789e45a6df74c5e729a241e726185755.js:2:586)
+    at http://localhost:8765/_expo/static/js/web/entry-789e45a6df74c5e729a241e726185755.js:260:259
+    at f (http://localhost:8765/_expo/static/js/web/entry-789e45a6df74c5e729a241e726185755.js:2:2068)
+    at a (http://localhost:8765/_expo/static/js/web/entry-789e45a6df74c5e729a241e726185755.js:2:1564)
+    at i (http://localhost:8765/_expo/static/js/web/entry-789e45a6df74c5e729a241e726185755.js:2:586)
+    at http://localhost:8765/_expo/static/js/web/entry-789e45a6df74c5e729a241e726185755.js:259:248
+    at f (http://localhost:8765/_expo/static/js/web/entry-789e45a6df74c5e729a241e726185755.js:2:2068)
