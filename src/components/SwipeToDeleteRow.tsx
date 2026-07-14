@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Animated, Pressable, StyleSheet, View } from 'react-native';
+import { Animated, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors, radius, spacing } from '../theme';
@@ -26,7 +26,7 @@ export function SwipeToDeleteRow({ children, onDelete }: Props) {
     return (
       <View style={styles.actionWrap}>
         <Pressable
-          accessibilityLabel="루틴 삭제"
+          accessibilityLabel="삭제"
           style={styles.deleteBtn}
           onPress={() => {
             ref.current?.close();
@@ -47,6 +47,7 @@ export function SwipeToDeleteRow({ children, onDelete }: Props) {
       friction={2}
       rightThreshold={ACTION_WIDTH / 2}
       overshootRight={false}
+      useNativeAnimations={Platform.OS !== 'web'}
       renderRightActions={renderRightActions}
     >
       {children}

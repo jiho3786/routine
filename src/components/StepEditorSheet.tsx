@@ -33,15 +33,18 @@ export function StepEditorSheet({
 }: Props) {
   const [title, setTitle] = useState('');
   const [durationSec, setDurationSec] = useState(300);
+  const [note, setNote] = useState('');
 
   useEffect(() => {
     if (!visible) return;
     if (initial) {
       setTitle(initial.title);
       setDurationSec(Math.max(1, initial.durationSec));
+      setNote(initial.note ?? '');
     } else {
       setTitle('');
       setDurationSec(300);
+      setNote('');
     }
   }, [visible, initial]);
 
@@ -67,7 +70,18 @@ export function StepEditorSheet({
           <Text style={styles.label}>시간</Text>
           <DurationPicker durationSec={durationSec} onChange={setDurationSec} />
 
+          <Text style={styles.label}>메모 (선택)</Text>
+          <TextInput
+            value={note}
+            onChangeText={setNote}
+            placeholder="예: 허리 펴고 천천히"
+            placeholderTextColor={colors.muted}
+            style={[styles.input, styles.noteInput]}
+            multiline
+          />
+
           <View style={styles.actions}>
+            <Button title="취소" variant="ghost" style={{ flex: 1 }} onPress={onClose} />
             {initial && onDelete ? (
               <Button
                 title="삭제"
@@ -75,9 +89,7 @@ export function StepEditorSheet({
                 style={{ flex: 1 }}
                 onPress={() => onDelete(initial.id)}
               />
-            ) : (
-              <Button title="취소" variant="ghost" style={{ flex: 1 }} onPress={onClose} />
-            )}
+            ) : null}
             <Button
               title="저장"
               style={{ flex: 1 }}
@@ -88,6 +100,7 @@ export function StepEditorSheet({
                   title: title.trim(),
                   durationSec,
                   order: initial?.order ?? defaultOrder,
+                  note: note.trim() || undefined,
                 })
               }
             />
@@ -137,6 +150,11 @@ const styles = StyleSheet.create({
     fontSize: 17,
     color: colors.ink,
     backgroundColor: colors.surfaceSecondary,
+  },
+  noteInput: {
+    minHeight: 72,
+    textAlignVertical: 'top',
+    fontSize: 15,
   },
   actions: {
     flexDirection: 'row',

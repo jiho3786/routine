@@ -3,6 +3,8 @@ export type Step = {
   title: string;
   durationSec: number;
   order: number;
+  /** 단계 안내 메모 (선택). 플레이어에 표시 */
+  note?: string;
 };
 
 export type RoutineSchedule = {
@@ -17,6 +19,8 @@ export type Routine = {
   id: string;
   name: string;
   color: string;
+  /** Ionicons 이름. 기본 timer-outline */
+  icon: string;
   updatedAt: string;
   steps: Step[];
   repeatCount: number;
@@ -51,6 +55,8 @@ export type CompletionRecord = {
 export type Settings = {
   soundEnabled: boolean;
   hapticEnabled: boolean;
+  /** 각 단계 시작 전 준비 카운트다운 초. 0이면 끔 */
+  prepCountdownSec: number;
 };
 
 export type UserTemplate = {

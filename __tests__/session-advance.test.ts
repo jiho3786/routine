@@ -6,6 +6,7 @@ function makeSession(overrides: Partial<Session> = {}): Session {
     id: 'r1',
     name: '테스트',
     color: '#000',
+    icon: 'timer-outline',
     updatedAt: new Date().toISOString(),
     repeatCount: 2,
     schedule: { enabled: false, hour: 7, minute: 0, weekdays: [] },

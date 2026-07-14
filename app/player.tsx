@@ -1,12 +1,13 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useKeepAwake } from 'expo-keep-awake';
 import { router } from 'expo-router';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CircularTimerRing } from '../src/components/CircularTimerRing';
 import { Screen } from '../src/components/ui';
 import { useStore } from '../src/store';
-import { colors, spacing, typography } from '../src/theme';
+import { colors, radius, spacing, typography } from '../src/theme';
 import { formatDuration } from '../src/utils/time';
 
 function StepDots({ total, current }: { total: number; current: number }) {
@@ -28,8 +29,10 @@ function StepDots({ total, current }: { total: number; current: number }) {
 
 export default function PlayerScreen() {
   const insets = useSafeAreaInsets();
+  useKeepAwake();
   const {
     session,
+    settings,
     tickRemaining,
     pauseSession,
     resumeSession,
@@ -37,6 +40,15 @@ export default function PlayerScreen() {
     previousStep,
     stopSession,
   } = useStore();
+
+  const prepSec = settings.prepCountdownSec;
+  const [prepLeft, setPrepLeft] = useState<number | null>(null);
+  const preppedKeyRef = useRef<string | null>(null);
+
+  const stepKey =
+    session && session.status !== 'completed'
+      ? `${session.id}-${session.currentRepeat}-${session.currentStepIndex}`
+      : null;
 
   useEffect(() => {
     if (!session) {
@@ -47,6 +59,27 @@ export default function PlayerScreen() {
       router.replace('/done');
     }
   }, [session]);
+
+  // 새 단계로 넘어갈 때마다 준비 카운트다운 시작 (타이머는 일시정지 후 재개)
+  useEffect(() => {
+    if (stepKey == null) return;
+    if (prepSec <= 0) return;
+    if (preppedKeyRef.current === stepKey) return;
+    preppedKeyRef.current = stepKey;
+    setPrepLeft(prepSec);
+    void pauseSession();
+  }, [stepKey, prepSec, pauseSession]);
+
+  useEffect(() => {
+    if (prepLeft == null) return;
+    if (prepLeft <= 0) {
+      setPrepLeft(null);
+      void resumeSession();
+      return;
+    }
+    const t = setTimeout(() => setPrepLeft((v) => (v == null ? null : v - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [prepLeft, resumeSession]);
 
   const steps = useMemo(
     () => [...(session?.routineSnapshot.steps ?? [])].sort((a, b) => a.order - b.order),
@@ -63,7 +96,13 @@ export default function PlayerScreen() {
   const remaining = tickRemaining ?? session.remainingSec;
   const total = current?.durationSec || 1;
   const progress = remaining / total;
-  const isPaused = session.status === 'paused';
+  const isPreparing = prepLeft != null;
+  const isPaused = session.status === 'paused' && !isPreparing;
+
+  const skipPrep = () => {
+    if (!isPreparing) return;
+    setPrepLeft(0);
+  };
 
   const onExit = () => {
     Alert.alert('실행 종료', '진행 중인 루틴을 종료할까요?', [
@@ -100,9 +139,26 @@ export default function PlayerScreen() {
         <StepDots total={steps.length} current={index} />
 
         <View style={styles.ringSection}>
-          <CircularTimerRing progress={progress} remainingSec={remaining} />
-          {isPaused ? <Text style={styles.pausedLabel}>일시정지</Text> : null}
+          {isPreparing ? (
+            <Pressable style={styles.prepBox} onPress={skipPrep}>
+              <Text style={styles.prepLabel}>준비</Text>
+              <Text style={styles.prepNumber}>{prepLeft}</Text>
+              <Text style={styles.prepHint}>탭하여 바로 시작</Text>
+            </Pressable>
+          ) : (
+            <>
+              <CircularTimerRing progress={progress} remainingSec={remaining} />
+              {isPaused ? <Text style={styles.pausedLabel}>일시정지</Text> : null}
+            </>
+          )}
         </View>
+
+        {current?.note ? (
+          <View style={styles.noteBox}>
+            <Ionicons name="information-circle-outline" size={16} color={colors.muted} />
+            <Text style={styles.noteText}>{current.note}</Text>
+          </View>
+        ) : null}
 
         <Text style={styles.next}>
           {next
@@ -114,19 +170,28 @@ export default function PlayerScreen() {
       </View>
 
       <View style={[styles.controls, { paddingBottom: insets.bottom + spacing.lg }]}>
-        <Pressable style={styles.roundBtn} onPress={() => previousStep()}>
-          <Ionicons name="play-back" size={24} color={colors.ink} />
+        <Pressable
+          style={styles.roundBtn}
+          disabled={isPreparing}
+          onPress={() => previousStep()}
+        >
+          <Ionicons name="play-back" size={24} color={isPreparing ? colors.muted : colors.ink} />
         </Pressable>
 
         <Pressable
           style={[styles.roundBtn, styles.roundBtnPrimary]}
+          disabled={isPreparing}
           onPress={() => (isPaused ? resumeSession() : pauseSession())}
         >
           <Ionicons name={isPaused ? 'play' : 'pause'} size={30} color="#FFFFFF" />
         </Pressable>
 
-        <Pressable style={styles.roundBtn} onPress={() => skipStep()}>
-          <Ionicons name="play-forward" size={24} color={colors.ink} />
+        <Pressable style={styles.roundBtn} disabled={isPreparing} onPress={() => skipStep()}>
+          <Ionicons
+            name="play-forward"
+            size={24}
+            color={isPreparing ? colors.muted : colors.ink}
+          />
         </Pressable>
       </View>
     </Screen>
@@ -193,8 +258,52 @@ const styles = StyleSheet.create({
   },
   ringSection: {
     alignItems: 'center',
+    justifyContent: 'center',
     marginVertical: spacing.lg,
     gap: spacing.sm,
+    minHeight: 220,
+  },
+  prepBox: {
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceSecondary,
+    borderWidth: 2,
+    borderColor: colors.separator,
+    gap: 2,
+  },
+  prepLabel: {
+    ...typography.subhead,
+    color: colors.muted,
+    fontWeight: '600',
+    letterSpacing: 2,
+  },
+  prepNumber: {
+    fontSize: 88,
+    fontWeight: '200',
+    color: colors.ink,
+    letterSpacing: -2,
+  },
+  prepHint: {
+    ...typography.caption,
+    color: colors.muted,
+  },
+  noteBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    maxWidth: 320,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: radius.md,
+  },
+  noteText: {
+    ...typography.subhead,
+    color: colors.inkSecondary,
+    flexShrink: 1,
   },
   pausedLabel: {
     ...typography.footnote,

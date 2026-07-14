@@ -1,7 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { router, Stack, useLocalSearchParams, useNavigation } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Pressable,
   StyleSheet,
@@ -14,37 +15,115 @@ import DraggableFlatList, {
   ScaleDecorator,
 } from 'react-native-draggable-flatlist';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { OptionsMenuSheet } from '../../src/components/OptionsMenuSheet';
 import { StepEditorSheet } from '../../src/components/StepEditorSheet';
 import { RoutineOptionsSection } from '../../src/components/RoutineOptionsSection';
+import { SwipeToDeleteRow } from '../../src/components/SwipeToDeleteRow';
 import { Button, Screen } from '../../src/components/ui';
 import { useStore } from '../../src/store';
 import { colors, radius, shadow, spacing, typography } from '../../src/theme';
-import type { Step } from '../../src/types';
+import type { Routine, Step } from '../../src/types';
+import {
+  cloneRoutine,
+  routineEditFingerprint,
+} from '../../src/utils/routineDraft';
 import { formatDuration, formatDurationHuman, routineTotalSec } from '../../src/utils/time';
 
 export default function RoutineDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
   const {
     routines,
     updateRoutine,
     deleteRoutine,
     duplicateRoutine,
     saveRoutineAsTemplate,
-    reorderSteps,
-    upsertStep,
-    removeStep,
     startSession,
     session,
   } = useStore();
 
-  const routine = routines.find((r) => r.id === id);
+  const stored = routines.find((r) => r.id === id);
+  const [draft, setDraft] = useState<Routine | null>(null);
   const [editingStep, setEditingStep] = useState<Step | null | undefined>(undefined);
-  // undefined = closed, null = new, Step = edit
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const baselineRef = useRef('');
+  const allowLeaveRef = useRef(false);
+  const draftRef = useRef<Routine | null>(null);
+  const isDirtyRef = useRef(false);
+
+  useEffect(() => {
+    if (!stored) {
+      setDraft(null);
+      baselineRef.current = '';
+      return;
+    }
+    setDraft((prev) => {
+      if (prev?.id === stored.id) return prev;
+      const copy = cloneRoutine(stored);
+      baselineRef.current = routineEditFingerprint(copy);
+      return copy;
+    });
+  }, [stored]);
+
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
+
+  const isDirty = useMemo(() => {
+    if (!draft) return false;
+    return routineEditFingerprint(draft) !== baselineRef.current;
+  }, [draft]);
+
+  useEffect(() => {
+    isDirtyRef.current = isDirty;
+  }, [isDirty]);
+
+  const persistDraft = useCallback(async () => {
+    const current = draftRef.current;
+    if (!current) return;
+    await updateRoutine(current);
+    baselineRef.current = routineEditFingerprint(current);
+    isDirtyRef.current = false;
+  }, [updateRoutine]);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      if (allowLeaveRef.current) return;
+      if (!isDirtyRef.current) return;
+
+      e.preventDefault();
+
+      Alert.alert('변경 사항 저장', '편집한 내용을 저장할까요?', [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '저장 안 함',
+          style: 'destructive',
+          onPress: () => {
+            allowLeaveRef.current = true;
+            navigation.dispatch(e.data.action);
+          },
+        },
+        {
+          text: '저장',
+          onPress: () => {
+            void (async () => {
+              await persistDraft();
+              allowLeaveRef.current = true;
+              navigation.dispatch(e.data.action);
+            })();
+          },
+        },
+      ]);
+    });
+
+    return unsubscribe;
+  }, [navigation, persistDraft]);
 
   const steps = useMemo(
-    () => [...(routine?.steps ?? [])].sort((a, b) => a.order - b.order),
-    [routine?.steps]
+    () => [...(draft?.steps ?? [])].sort((a, b) => a.order - b.order),
+    [draft?.steps]
   );
 
   const isRunningOther =
@@ -52,7 +131,28 @@ export default function RoutineDetailScreen() {
     (session.status === 'running' || session.status === 'paused') &&
     session.routineId !== id;
 
-  if (!routine) {
+  const patchDraft = useCallback((patch: Partial<Routine>) => {
+    setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
+  }, []);
+
+  const onDeleteStep = (step: Step) => {
+    Alert.alert('단계 삭제', `"${step.title}" 단계를 삭제할까요?`, [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '삭제',
+        style: 'destructive',
+        onPress: () => {
+          setDraft((prev) =>
+            prev
+              ? { ...prev, steps: prev.steps.filter((s) => s.id !== step.id) }
+              : prev
+          );
+        },
+      },
+    ]);
+  };
+
+  if (!stored) {
     return (
       <Screen style={styles.center}>
         <Text style={styles.missing}>루틴을 찾을 수 없습니다.</Text>
@@ -61,12 +161,27 @@ export default function RoutineDetailScreen() {
     );
   }
 
-  const openMenu = () => {
-    Alert.alert(routine.name, undefined, [
-      {
-        text: '템플릿으로 저장',
-        onPress: async () => {
-          const template = await saveRoutineAsTemplate(routine.id);
+  if (!draft) {
+    return (
+      <Screen style={styles.center}>
+        <ActivityIndicator color={colors.accent} size="large" />
+      </Screen>
+    );
+  }
+
+  const leaveAfter = async (action: () => void | Promise<void>) => {
+    allowLeaveRef.current = true;
+    await action();
+  };
+
+  const menuItems = [
+    {
+      key: 'save-template',
+      label: '템플릿으로 저장',
+      onPress: () => {
+        void (async () => {
+          await persistDraft();
+          const template = await saveRoutineAsTemplate(draft.id);
           if (template) {
             Alert.alert('저장됨', '내 템플릿에 추가했습니다.', [
               { text: '닫기', style: 'cancel' },
@@ -76,34 +191,42 @@ export default function RoutineDetailScreen() {
               },
             ]);
           }
-        },
+        })();
       },
-      {
-        text: '복제',
-        onPress: async () => {
-          const copy = await duplicateRoutine(routine.id);
-          if (copy) router.replace(`/routine/${copy.id}`);
-        },
+    },
+    {
+      key: 'duplicate',
+      label: '복제',
+      onPress: () => {
+        void (async () => {
+          await persistDraft();
+          const copy = await duplicateRoutine(draft.id);
+          if (copy) {
+            await leaveAfter(() => router.replace(`/routine/${copy.id}`));
+          }
+        })();
       },
-      {
-        text: '삭제',
-        style: 'destructive',
-        onPress: () =>
-          Alert.alert('루틴 삭제', '이 루틴을 삭제할까요?', [
-            { text: '취소', style: 'cancel' },
-            {
-              text: '삭제',
-              style: 'destructive',
-              onPress: async () => {
-                await deleteRoutine(routine.id);
+    },
+    {
+      key: 'delete',
+      label: '삭제',
+      destructive: true,
+      onPress: () =>
+        Alert.alert('루틴 삭제', '이 루틴을 삭제할까요?', [
+          { text: '취소', style: 'cancel' },
+          {
+            text: '삭제',
+            style: 'destructive',
+            onPress: async () => {
+              await leaveAfter(async () => {
+                await deleteRoutine(draft.id);
                 router.replace('/');
-              },
+              });
             },
-          ]),
-      },
-      { text: '취소', style: 'cancel' },
-    ]);
-  };
+          },
+        ]),
+    },
+  ];
 
   const onStart = async () => {
     if (steps.length === 0) {
@@ -114,8 +237,13 @@ export default function RoutineDetailScreen() {
       Alert.alert('다른 루틴 실행 중', '진행 중인 세션을 종료한 뒤 시작하세요.');
       return;
     }
-    const started = await startSession(routine.id);
-    if (started) router.push('/player');
+    if (isDirty) {
+      await persistDraft();
+    }
+    const started = await startSession(draft.id);
+    if (started) {
+      await leaveAfter(() => router.push('/player'));
+    }
   };
 
   return (
@@ -124,7 +252,11 @@ export default function RoutineDetailScreen() {
         options={{
           title: '루틴 편집',
           headerRight: () => (
-            <Pressable hitSlop={12} onPress={openMenu} style={{ paddingHorizontal: 8 }}>
+            <Pressable
+              hitSlop={12}
+              onPress={() => setMenuOpen(true)}
+              style={{ paddingHorizontal: 8 }}
+            >
               <Ionicons name="ellipsis-horizontal" size={22} color={colors.ink} />
             </Pressable>
           ),
@@ -133,32 +265,32 @@ export default function RoutineDetailScreen() {
 
       <View style={styles.headerBlock}>
         <TextInput
-          value={routine.name}
-          onChangeText={(name) => updateRoutine({ ...routine, name })}
+          value={draft.name}
+          onChangeText={(name) => patchDraft({ name })}
           style={styles.nameInput}
           placeholder="루틴 이름"
           placeholderTextColor={colors.muted}
         />
         <Text style={styles.meta}>
-          총 {formatDurationHuman(routineTotalSec(steps) * routine.repeatCount)} · {steps.length}
+          총 {formatDurationHuman(routineTotalSec(steps) * draft.repeatCount)} · {steps.length}
           단계
-          {routine.repeatCount > 1 ? ` · ${routine.repeatCount}회 반복` : ''}
+          {draft.repeatCount > 1 ? ` · ${draft.repeatCount}회 반복` : ''}
+          {isDirty ? ' · 수정됨' : ''}
         </Text>
       </View>
 
       <RoutineOptionsSection
-        routine={routine}
-        onChange={(patch) => updateRoutine({ ...routine, ...patch })}
+        routine={draft}
+        onChange={(patch) => patchDraft(patch)}
       />
 
       <DraggableFlatList
         data={steps}
         keyExtractor={(item) => item.id}
         onDragEnd={({ data }) => {
-          void reorderSteps(
-            routine.id,
-            data.map((step, index) => ({ ...step, order: index }))
-          );
+          patchDraft({
+            steps: data.map((step, index) => ({ ...step, order: index })),
+          });
         }}
         containerStyle={{ flex: 1 }}
         contentContainerStyle={{
@@ -174,21 +306,23 @@ export default function RoutineDetailScreen() {
         }
         renderItem={({ item, drag, isActive }: RenderItemParams<Step>) => (
           <ScaleDecorator>
-            <Pressable
-              onLongPress={drag}
-              disabled={isActive}
-              onPress={() => setEditingStep(item)}
-              style={[styles.stepCard, isActive && styles.stepActive]}
-            >
-              <Pressable onPressIn={drag} hitSlop={8} style={styles.handle}>
-                <Ionicons name="menu" size={22} color={colors.muted} />
+            <SwipeToDeleteRow onDelete={() => onDeleteStep(item)}>
+              <Pressable
+                onLongPress={drag}
+                disabled={isActive}
+                onPress={() => setEditingStep(item)}
+                style={[styles.stepCard, isActive && styles.stepActive]}
+              >
+                <Pressable onPressIn={drag} hitSlop={8} style={styles.handle}>
+                  <Ionicons name="menu" size={22} color={colors.muted} />
+                </Pressable>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.stepTitle}>{item.title}</Text>
+                  <Text style={styles.stepTime}>{formatDuration(item.durationSec)}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.muted} />
               </Pressable>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.stepTitle}>{item.title}</Text>
-                <Text style={styles.stepTime}>{formatDuration(item.durationSec)}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-            </Pressable>
+            </SwipeToDeleteRow>
           </ScaleDecorator>
         )}
       />
@@ -197,17 +331,35 @@ export default function RoutineDetailScreen() {
         <Button title="시작" onPress={onStart} />
       </View>
 
+      <OptionsMenuSheet
+        visible={menuOpen}
+        title={draft.name}
+        items={menuItems}
+        onClose={() => setMenuOpen(false)}
+      />
+
       <StepEditorSheet
         visible={editingStep !== undefined}
         initial={editingStep ?? null}
         defaultOrder={steps.length}
         onClose={() => setEditingStep(undefined)}
-        onSave={async (step) => {
-          await upsertStep(routine.id, step);
+        onSave={(step) => {
+          setDraft((prev) => {
+            if (!prev) return prev;
+            const exists = prev.steps.some((s) => s.id === step.id);
+            const nextSteps = exists
+              ? prev.steps.map((s) => (s.id === step.id ? step : s))
+              : [...prev.steps, step];
+            return { ...prev, steps: nextSteps };
+          });
           setEditingStep(undefined);
         }}
-        onDelete={async (stepId) => {
-          await removeStep(routine.id, stepId);
+        onDelete={(stepId) => {
+          setDraft((prev) =>
+            prev
+              ? { ...prev, steps: prev.steps.filter((s) => s.id !== stepId) }
+              : prev
+          );
           setEditingStep(undefined);
         }}
       />

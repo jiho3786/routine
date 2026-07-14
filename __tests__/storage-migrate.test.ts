@@ -14,6 +14,7 @@ describe('storage migrate (legacy → 신규 필드)', () => {
 
     expect(migrated.repeatCount).toBe(1);
     expect(migrated.schedule).toEqual(defaultSchedule());
+    expect(migrated.icon).toBe('timer-outline');
   });
 
   test('구버전 세션에 repeat 필드를 채운다', () => {
@@ -45,6 +46,7 @@ describe('storage migrate (legacy → 신규 필드)', () => {
       id: 'r1',
       name: '공부',
       color: '#000',
+      icon: 'book-outline',
       updatedAt: '2026-01-01T00:00:00.000Z',
       steps: [],
       repeatCount: 4,
@@ -57,6 +59,7 @@ describe('storage migrate (legacy → 신규 필드)', () => {
     });
 
     expect(migrated.repeatCount).toBe(4);
+    expect(migrated.icon).toBe('book-outline');
     expect(migrated.schedule.enabled).toBe(true);
     expect(migrated.schedule.hour).toBe(9);
     expect(migrated.schedule.weekdays).toEqual([1, 3, 5]);

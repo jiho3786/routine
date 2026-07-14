@@ -1,10 +1,13 @@
 import type { CompletionRecord } from '../src/types';
 import {
+  buildContributionGrid,
   formatDayLabel,
+  getActiveDayRate,
   getStreak,
   getTodayCount,
   getWeekCount,
   groupCompletionsByDay,
+  heatLevel,
   localDayKey,
 } from '../src/utils/stats';
 
@@ -76,6 +79,52 @@ describe('stats', () => {
     ];
     expect(getTodayCount(list)).toBe(2);
     expect(getWeekCount(list)).toBe(3);
+  });
+
+  test('heatLevel: 0은 없음, max 이하 비율로 1~4', () => {
+    expect(heatLevel(0, 5)).toBe(0);
+    expect(heatLevel(1, 4)).toBe(1);
+    expect(heatLevel(2, 4)).toBe(2);
+    expect(heatLevel(3, 4)).toBe(3);
+    expect(heatLevel(4, 4)).toBe(4);
+    expect(heatLevel(1, 1)).toBe(4);
+  });
+
+  test('buildContributionGrid: weeks×7 격자, 오늘 이후는 미래 처리', () => {
+    const now = new Date('2026-07-14T12:00:00'); // 화요일
+    const { columns, max } = buildContributionGrid(
+      [record({ id: '1', completedAt: '2026-07-14T09:00:00' })],
+      15,
+      now
+    );
+    expect(columns).toHaveLength(15);
+    columns.forEach((c) => expect(c.days).toHaveLength(7));
+
+    const flat = columns.flatMap((c) => c.days);
+    const todayKey = localDayKey(now);
+    const todayCell = flat.find((d) => d.dayKey === todayKey)!;
+    expect(todayCell.count).toBe(1);
+    expect(todayCell.isFuture).toBe(false);
+    expect(max).toBe(1);
+
+    // 이번 주 수~토는 미래
+    const future = flat.filter((d) => d.isFuture);
+    expect(future.length).toBeGreaterThan(0);
+    future.forEach((d) => expect(d.count).toBe(0));
+  });
+
+  test('getActiveDayRate: 최근 N일 중 실천일 비율', () => {
+    const now = new Date('2026-07-14T12:00:00');
+    const list = [
+      record({ id: '1', completedAt: '2026-07-14T09:00:00' }),
+      record({ id: '2', completedAt: '2026-07-13T09:00:00' }),
+      record({ id: '3', completedAt: '2026-07-13T20:00:00' }), // 같은 날 중복
+      record({ id: '4', completedAt: '2026-07-01T09:00:00' }),
+    ];
+    const { activeDays, totalDays, rate } = getActiveDayRate(list, 30, now);
+    expect(totalDays).toBe(30);
+    expect(activeDays).toBe(3);
+    expect(rate).toBeCloseTo(3 / 30);
   });
 
   test('날짜별 그룹핑과 라벨', () => {

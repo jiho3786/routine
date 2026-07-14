@@ -260,6 +260,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       id: createId('routine'),
       name: '새 루틴',
       color: ROUTINE_COLORS[dataRef.current.routines.length % ROUTINE_COLORS.length],
+      icon: 'timer-outline',
       updatedAt: new Date().toISOString(),
       steps: [],
       repeatCount: 1,
@@ -284,6 +285,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         id: createId('routine'),
         name: template.name,
         color: template.color,
+        icon: template.icon || 'timer-outline',
         updatedAt: new Date().toISOString(),
         repeatCount: template.repeatCount,
         schedule: defaultSchedule(),
@@ -292,6 +294,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           title: step.title,
           durationSec: step.durationSec,
           order: index,
+          note: 'note' in step ? step.note : undefined,
         })),
       };
       const next = {
@@ -332,7 +335,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         name: routine.name,
         description: `${routine.steps.length}단계 루틴`,
         color: routine.color,
-        icon: 'bookmark-outline',
+        icon: routine.icon || 'bookmark-outline',
         repeatCount: Math.max(1, routine.repeatCount),
         steps: sortSteps(routine.steps).map((step, index) => ({
           ...step,

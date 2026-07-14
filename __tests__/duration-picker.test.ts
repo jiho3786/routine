@@ -24,6 +24,8 @@ describe('DurationPicker 시간 규칙', () => {
     expect(addDurationSec(300, 300)).toBe(600);
     expect(addDurationSec(60, 600)).toBe(660);
     expect(addDurationSec(30, 30)).toBe(60);
+    expect(addDurationSec(0, 1800)).toBe(1800);
+    expect(addDurationSec(60, 3600)).toBe(3660);
   });
 
   test('더하기는 상한을 넘지 않는다', () => {

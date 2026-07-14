@@ -22,6 +22,8 @@ const PRESETS = [
   { label: '5분', sec: 300 },
   { label: '10분', sec: 600 },
   { label: '25분', sec: 1500 },
+  { label: '30분', sec: 1800 },
+  { label: '60분', sec: 3600 },
 ] as const;
 
 const PX_PER_MINUTE = 22;
@@ -145,18 +147,22 @@ export function DurationPicker({ durationSec, onChange, maxMinutes = 180 }: Prop
 
       <Text style={styles.presetLabel}>시간 더하기</Text>
       <View style={styles.presets}>
-        {PRESETS.map((p) => (
-          <Pressable
-            key={p.label}
-            style={({ pressed }) => [styles.preset, pressed && styles.presetPressed]}
-            onPress={() => addPreset(p.sec)}
-          >
-            {({ pressed }) => (
-              <Text style={[styles.presetText, pressed && styles.presetTextPressed]}>
-                ＋{p.label}
-              </Text>
-            )}
-          </Pressable>
+        {[0, 1].map((row) => (
+          <View key={row} style={styles.presetRow}>
+            {PRESETS.slice(row * 4, row * 4 + 4).map((p) => (
+              <Pressable
+                key={p.label}
+                style={({ pressed }) => [styles.preset, pressed && styles.presetPressed]}
+                onPress={() => addPreset(p.sec)}
+              >
+                {({ pressed }) => (
+                  <Text style={[styles.presetText, pressed && styles.presetTextPressed]}>
+                    ＋{p.label}
+                  </Text>
+                )}
+              </Pressable>
+            ))}
+          </View>
         ))}
       </View>
     </View>
@@ -236,17 +242,21 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   presets: {
+    gap: spacing.sm,
+  },
+  presetRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: spacing.sm,
   },
   preset: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: radius.pill,
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: radius.md,
     backgroundColor: colors.surfaceSecondary,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.separator,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   presetPressed: {
     backgroundColor: colors.ink,

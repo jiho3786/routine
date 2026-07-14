@@ -19,6 +19,7 @@ import { SwipeToDeleteRow } from '../src/components/SwipeToDeleteRow';
 import { useStore } from '../src/store';
 import { colors, radius, shadow, spacing, typography } from '../src/theme';
 import type { Routine } from '../src/types';
+import { resolveAppIcon } from '../src/utils/icons';
 import { getStreak } from '../src/utils/stats';
 import { formatDurationHuman, routineTotalSec } from '../src/utils/time';
 
@@ -174,7 +175,13 @@ export default function HomeScreen() {
                   >
                     <Ionicons name="reorder-three" size={22} color={colors.muted} />
                   </Pressable>
-                  <View style={[styles.colorDot, { backgroundColor: item.color }]} />
+                  <View style={[styles.iconWrap, { backgroundColor: `${item.color}22` }]}>
+                    <Ionicons
+                      name={resolveAppIcon(item.icon)}
+                      size={22}
+                      color={item.color}
+                    />
+                  </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.cardTitle}>{item.name}</Text>
                     <Text style={styles.cardMeta}>
@@ -316,10 +323,12 @@ const styles = StyleSheet.create({
     marginRight: spacing.xs,
     marginLeft: -spacing.xs,
   },
-  colorDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+  iconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cardTitle: {
     ...typography.body,

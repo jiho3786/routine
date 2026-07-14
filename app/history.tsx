@@ -1,18 +1,76 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { router } from 'expo-router';
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { FlatList, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Screen } from '../src/components/ui';
 import { useStore } from '../src/store';
 import { colors, radius, shadow, spacing, typography } from '../src/theme';
 import {
+  buildContributionGrid,
   formatDayLabel,
+  getActiveDayRate,
   getStreak,
   getTodayCount,
   getWeekCount,
   groupCompletionsByDay,
+  heatLevel,
 } from '../src/utils/stats';
 import { formatDurationHuman } from '../src/utils/time';
+
+const HEAT_COLORS = [
+  colors.ringTrack,
+  'rgba(29, 29, 31, 0.25)',
+  'rgba(29, 29, 31, 0.45)',
+  'rgba(29, 29, 31, 0.7)',
+  colors.ink,
+];
+
+function Heatmap({ completions }: { completions: ReturnType<typeof useStore>['completions'] }) {
+  const { columns, max } = buildContributionGrid(completions, 15);
+  const { activeDays, totalDays, rate } = getActiveDayRate(completions, 30);
+
+  return (
+    <View style={styles.heatCard}>
+      <View style={styles.heatHeader}>
+        <Text style={styles.heatTitle}>최근 실천</Text>
+        <Text style={styles.heatRate}>
+          최근 {totalDays}일 중 {activeDays}일 · {Math.round(rate * 100)}%
+        </Text>
+      </View>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.heatGrid}
+      >
+        {columns.map((col, ci) => (
+          <View key={ci} style={styles.heatColumn}>
+            {col.days.map((cell) => (
+              <View
+                key={cell.dayKey}
+                style={[
+                  styles.heatCell,
+                  {
+                    backgroundColor: cell.isFuture
+                      ? 'transparent'
+                      : HEAT_COLORS[heatLevel(cell.count, max)],
+                  },
+                ]}
+              />
+            ))}
+          </View>
+        ))}
+      </ScrollView>
+
+      <View style={styles.legend}>
+        <Text style={styles.legendText}>적음</Text>
+        {HEAT_COLORS.map((c, i) => (
+          <View key={i} style={[styles.heatCell, { backgroundColor: c }]} />
+        ))}
+        <Text style={styles.legendText}>많음</Text>
+      </View>
+    </View>
+  );
+}
 
 export default function HistoryScreen() {
   const insets = useSafeAreaInsets();
@@ -42,6 +100,8 @@ export default function HistoryScreen() {
           <Text style={styles.statLabel}>이번 주</Text>
         </View>
       </View>
+
+      <Heatmap completions={completions} />
 
       {grouped.length === 0 ? (
         <View style={[styles.empty, { paddingBottom: insets.bottom + spacing.xl }]}>
@@ -95,7 +155,56 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     padding: spacing.md,
+    paddingBottom: spacing.sm,
     gap: spacing.sm,
+  },
+  heatCard: {
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    gap: spacing.sm,
+    ...shadow.card,
+  },
+  heatHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+  },
+  heatTitle: {
+    ...typography.footnote,
+    fontWeight: '600',
+    color: colors.muted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  heatRate: {
+    ...typography.footnote,
+    color: colors.inkSecondary,
+    fontWeight: '600',
+  },
+  heatGrid: {
+    flexDirection: 'row',
+    gap: 3,
+  },
+  heatColumn: {
+    gap: 3,
+  },
+  heatCell: {
+    width: 13,
+    height: 13,
+    borderRadius: 3,
+  },
+  legend: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 4,
+  },
+  legendText: {
+    ...typography.caption,
+    color: colors.muted,
   },
   statCard: {
     flex: 1,

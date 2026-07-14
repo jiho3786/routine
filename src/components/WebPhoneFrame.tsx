@@ -40,11 +40,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     borderWidth: 3,
     borderColor: '#2C2C2E',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.4,
-    shadowRadius: 40,
-    elevation: 16,
+    boxShadow: '0px 20px 40px rgba(0, 0, 0, 0.4)',
   },
   notch: {
     height: 32,

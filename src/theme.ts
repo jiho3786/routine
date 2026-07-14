@@ -50,18 +50,10 @@ export const typography = {
 
 export const shadow = {
   card: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.06)',
   },
   fab: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 4,
+    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.12)',
   },
 };
 

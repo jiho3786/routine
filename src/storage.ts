@@ -14,6 +14,7 @@ const STORAGE_KEY = 'routine_timer_v1';
 export const defaultSettings: Settings = {
   soundEnabled: true,
   hapticEnabled: true,
+  prepCountdownSec: 3,
 };
 
 export const defaultSchedule = (): RoutineSchedule => ({
@@ -28,6 +29,7 @@ function migrateRoutine(raw: Partial<Routine>): Routine {
     id: raw.id!,
     name: raw.name ?? '새 루틴',
     color: raw.color ?? '#007AFF',
+    icon: raw.icon ?? 'timer-outline',
     updatedAt: raw.updatedAt ?? new Date().toISOString(),
     steps: raw.steps ?? [],
     repeatCount: raw.repeatCount ?? 1,

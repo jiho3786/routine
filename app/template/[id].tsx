@@ -14,11 +14,14 @@ import DraggableFlatList, {
   ScaleDecorator,
 } from 'react-native-draggable-flatlist';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { IconPicker } from '../../src/components/IconPicker';
 import { StepEditorSheet } from '../../src/components/StepEditorSheet';
+import { SwipeToDeleteRow } from '../../src/components/SwipeToDeleteRow';
 import { Button, Screen } from '../../src/components/ui';
 import { useStore } from '../../src/store';
 import { colors, radius, shadow, spacing, typography } from '../../src/theme';
 import type { Step } from '../../src/types';
+import { resolveAppIcon } from '../../src/utils/icons';
 import { formatDuration, formatDurationHuman, routineTotalSec } from '../../src/utils/time';
 
 export default function TemplateEditorScreen() {
@@ -84,6 +87,22 @@ export default function TemplateEditorScreen() {
     });
   };
 
+  const onDeleteStep = (step: Step) => {
+    Alert.alert('단계 삭제', `"${step.title}" 단계를 삭제할까요?`, [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '삭제',
+        style: 'destructive',
+        onPress: () => {
+          void updateCustomTemplate({
+            ...template,
+            steps: template.steps.filter((s) => s.id !== step.id),
+          });
+        },
+      },
+    ]);
+  };
+
   return (
     <Screen>
       <Stack.Screen
@@ -96,44 +115,6 @@ export default function TemplateEditorScreen() {
           ),
         }}
       />
-
-      <View style={styles.headerBlock}>
-        <TextInput
-          value={template.name}
-          onChangeText={(name) => updateCustomTemplate({ ...template, name })}
-          style={styles.nameInput}
-          placeholder="템플릿 이름"
-          placeholderTextColor={colors.muted}
-        />
-        <TextInput
-          value={template.description}
-          onChangeText={(description) => updateCustomTemplate({ ...template, description })}
-          style={styles.descInput}
-          placeholder="설명 (선택)"
-          placeholderTextColor={colors.muted}
-        />
-        <Text style={styles.meta}>
-          총 {formatDurationHuman(routineTotalSec(steps) * template.repeatCount)} · {steps.length}
-          단계
-          {template.repeatCount > 1 ? ` · ${template.repeatCount}회 반복` : ''}
-        </Text>
-
-        <View style={styles.repeatRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.repeatLabel}>반복 횟수</Text>
-            <Text style={styles.repeatHint}>루틴 생성 시 기본값</Text>
-          </View>
-          <View style={styles.stepper}>
-            <Pressable style={styles.stepBtn} onPress={() => adjustRepeat(-1)}>
-              <Ionicons name="remove" size={18} color={colors.ink} />
-            </Pressable>
-            <Text style={styles.stepValue}>{template.repeatCount}</Text>
-            <Pressable style={styles.stepBtn} onPress={() => adjustRepeat(1)}>
-              <Ionicons name="add" size={18} color={colors.ink} />
-            </Pressable>
-          </View>
-        </View>
-      </View>
 
       <DraggableFlatList
         data={steps}
@@ -150,6 +131,66 @@ export default function TemplateEditorScreen() {
           paddingBottom: 120 + insets.bottom,
           gap: spacing.sm,
         }}
+        ListHeaderComponent={
+          <View style={styles.headerBlock}>
+            <View style={styles.titleRow}>
+              <View style={[styles.previewIcon, { backgroundColor: `${template.color}22` }]}>
+                <Ionicons
+                  name={resolveAppIcon(template.icon, 'bookmark-outline')}
+                  size={28}
+                  color={template.color}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <TextInput
+                  value={template.name}
+                  onChangeText={(name) => updateCustomTemplate({ ...template, name })}
+                  style={styles.nameInput}
+                  placeholder="템플릿 이름"
+                  placeholderTextColor={colors.muted}
+                />
+                <TextInput
+                  value={template.description}
+                  onChangeText={(description) =>
+                    updateCustomTemplate({ ...template, description })
+                  }
+                  style={styles.descInput}
+                  placeholder="설명 (선택)"
+                  placeholderTextColor={colors.muted}
+                />
+              </View>
+            </View>
+            <Text style={styles.meta}>
+              총 {formatDurationHuman(routineTotalSec(steps) * template.repeatCount)} ·{' '}
+              {steps.length}단계
+              {template.repeatCount > 1 ? ` · ${template.repeatCount}회 반복` : ''}
+            </Text>
+
+            <IconPicker
+              value={template.icon}
+              color={template.color}
+              onChange={(icon) => updateCustomTemplate({ ...template, icon })}
+            />
+
+            <View style={styles.repeatRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.repeatLabel}>반복 횟수</Text>
+                <Text style={styles.repeatHint}>루틴 생성 시 기본값</Text>
+              </View>
+              <View style={styles.stepper}>
+                <Pressable style={styles.stepBtn} onPress={() => adjustRepeat(-1)}>
+                  <Ionicons name="remove" size={18} color={colors.ink} />
+                </Pressable>
+                <Text style={styles.stepValue}>{template.repeatCount}</Text>
+                <Pressable style={styles.stepBtn} onPress={() => adjustRepeat(1)}>
+                  <Ionicons name="add" size={18} color={colors.ink} />
+                </Pressable>
+              </View>
+            </View>
+
+            <Text style={styles.sectionLabel}>단계</Text>
+          </View>
+        }
         ListFooterComponent={
           <Pressable style={styles.addStep} onPress={() => setEditingStep(null)}>
             <Ionicons name="add" size={20} color={colors.accentDeep} />
@@ -158,21 +199,23 @@ export default function TemplateEditorScreen() {
         }
         renderItem={({ item, drag, isActive }: RenderItemParams<Step>) => (
           <ScaleDecorator>
-            <Pressable
-              onLongPress={drag}
-              disabled={isActive}
-              onPress={() => setEditingStep(item)}
-              style={[styles.stepCard, isActive && styles.stepActive]}
-            >
-              <Pressable onPressIn={drag} hitSlop={8} style={styles.handle}>
-                <Ionicons name="menu" size={22} color={colors.muted} />
+            <SwipeToDeleteRow onDelete={() => onDeleteStep(item)}>
+              <Pressable
+                onLongPress={drag}
+                disabled={isActive}
+                onPress={() => setEditingStep(item)}
+                style={[styles.stepCard, isActive && styles.stepActive]}
+              >
+                <Pressable onPressIn={drag} hitSlop={8} style={styles.handle}>
+                  <Ionicons name="menu" size={22} color={colors.muted} />
+                </Pressable>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.stepTitle}>{item.title}</Text>
+                  <Text style={styles.stepTime}>{formatDuration(item.durationSec)}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.muted} />
               </Pressable>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.stepTitle}>{item.title}</Text>
-                <Text style={styles.stepTime}>{formatDuration(item.durationSec)}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-            </Pressable>
+            </SwipeToDeleteRow>
           </ScaleDecorator>
         )}
       />
@@ -220,10 +263,22 @@ const styles = StyleSheet.create({
   center: { alignItems: 'center', justifyContent: 'center', gap: spacing.md },
   missing: { ...typography.body, color: colors.muted },
   headerBlock: {
-    paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
     gap: spacing.xs,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+  },
+  previewIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
   },
   nameInput: {
     ...typography.largeTitle,
@@ -266,6 +321,15 @@ const styles = StyleSheet.create({
     color: colors.ink,
     minWidth: 28,
     textAlign: 'center',
+  },
+  sectionLabel: {
+    marginTop: spacing.lg,
+    marginBottom: spacing.xs,
+    ...typography.footnote,
+    fontWeight: '600',
+    color: colors.muted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
   },
   stepCard: {
     backgroundColor: colors.surface,
