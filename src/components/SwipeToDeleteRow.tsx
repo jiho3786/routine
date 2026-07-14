@@ -22,7 +22,7 @@ export function SwipeToDeleteRow({ children, onDelete }: Props) {
   const renderDeleteButton = (scale: Animated.AnimatedInterpolation<number>) => (
     <Pressable accessibilityLabel="삭제" style={styles.deleteBtn} onPress={handleDelete}>
       <Animated.View style={{ transform: [{ scale }], alignItems: 'center' }}>
-        <Ionicons name="trash-outline" size={24} color="#FF9500" />
+        <Ionicons name="trash-outline" size={24} color={colors.ink} />
       </Animated.View>
     </Pressable>
   );

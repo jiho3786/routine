@@ -39,6 +39,8 @@ export type Session = {
   startedAt: string;
   endedAt?: string;
   pauseStartedAt?: string;
+  /** 단계 종료 후 다음으로 가기 전 사용자 확인 대기 */
+  awaitingConfirm?: boolean;
   repeatCount: number;
   currentRepeat: number;
 };

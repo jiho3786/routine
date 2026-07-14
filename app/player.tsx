@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CircularTimerRing } from '../src/components/CircularTimerRing';
-import { Screen } from '../src/components/ui';
+import { Button, Screen } from '../src/components/ui';
 import { useStore } from '../src/store';
 import { colors, radius, spacing, typography } from '../src/theme';
 import { formatDuration } from '../src/utils/time';
@@ -37,6 +37,7 @@ export default function PlayerScreen() {
     pauseSession,
     resumeSession,
     skipStep,
+    confirmAdvance,
     previousStep,
     stopSession,
   } = useStore();
@@ -50,6 +51,8 @@ export default function PlayerScreen() {
       ? `${session.id}-${session.currentRepeat}-${session.currentStepIndex}`
       : null;
 
+  const awaitingConfirm = !!session?.awaitingConfirm;
+
   useEffect(() => {
     if (!session) {
       router.replace('/');
@@ -60,18 +63,23 @@ export default function PlayerScreen() {
     }
   }, [session]);
 
-  // 새 단계로 넘어갈 때마다 준비 카운트다운 시작 (타이머는 일시정지 후 재개)
+  // 새 단계로 넘어갈 때마다 준비 카운트다운 (확인 대기 중이 아닐 때만)
   useEffect(() => {
     if (stepKey == null) return;
+    if (awaitingConfirm) return;
     if (prepSec <= 0) return;
     if (preppedKeyRef.current === stepKey) return;
     preppedKeyRef.current = stepKey;
     setPrepLeft(prepSec);
     void pauseSession();
-  }, [stepKey, prepSec, pauseSession]);
+  }, [stepKey, prepSec, pauseSession, awaitingConfirm]);
 
   useEffect(() => {
     if (prepLeft == null) return;
+    if (awaitingConfirm) {
+      setPrepLeft(null);
+      return;
+    }
     if (prepLeft <= 0) {
       setPrepLeft(null);
       void resumeSession();
@@ -79,12 +87,20 @@ export default function PlayerScreen() {
     }
     const t = setTimeout(() => setPrepLeft((v) => (v == null ? null : v - 1)), 1000);
     return () => clearTimeout(t);
-  }, [prepLeft, resumeSession]);
+  }, [prepLeft, resumeSession, awaitingConfirm]);
 
   const steps = useMemo(
     () => [...(session?.routineSnapshot.steps ?? [])].sort((a, b) => a.order - b.order),
     [session?.routineSnapshot.steps]
   );
+
+  const isLastTransition = useMemo(() => {
+    if (!session) return false;
+    const sorted = [...session.routineSnapshot.steps].sort((a, b) => a.order - b.order);
+    const isLastStep = session.currentStepIndex >= sorted.length - 1;
+    const isLastRepeat = session.currentRepeat >= session.repeatCount;
+    return isLastStep && isLastRepeat;
+  }, [session]);
 
   if (!session || session.status === 'completed') {
     return <Screen />;
@@ -96,8 +112,8 @@ export default function PlayerScreen() {
   const remaining = tickRemaining ?? session.remainingSec;
   const total = current?.durationSec || 1;
   const progress = remaining / total;
-  const isPreparing = prepLeft != null;
-  const isPaused = session.status === 'paused' && !isPreparing;
+  const isPreparing = prepLeft != null && !awaitingConfirm;
+  const isPaused = session.status === 'paused' && !isPreparing && !awaitingConfirm;
 
   const skipPrep = () => {
     if (!isPreparing) return;
@@ -116,6 +132,14 @@ export default function PlayerScreen() {
         },
       },
     ]);
+  };
+
+  const onRequestNext = () => {
+    if (awaitingConfirm) {
+      void confirmAdvance();
+      return;
+    }
+    void skipStep();
   };
 
   return (
@@ -139,7 +163,21 @@ export default function PlayerScreen() {
         <StepDots total={steps.length} current={index} />
 
         <View style={styles.ringSection}>
-          {isPreparing ? (
+          {awaitingConfirm ? (
+            <View style={styles.confirmBox}>
+              <Text style={styles.confirmMessage}>
+                {isLastTransition
+                  ? '루틴을 완료하시겠습니까?'
+                  : '다음 단계로 넘어가시겠습니까?'}
+              </Text>
+              {!isLastTransition && next ? (
+                <Text style={styles.confirmNext}>
+                  다음 · {next.title} ({formatDuration(next.durationSec)})
+                </Text>
+              ) : null}
+              <Button title="예" onPress={() => void confirmAdvance()} style={styles.confirmBtn} />
+            </View>
+          ) : isPreparing ? (
             <Pressable style={styles.prepBox} onPress={skipPrep}>
               <Text style={styles.prepLabel}>준비</Text>
               <Text style={styles.prepNumber}>{prepLeft}</Text>
@@ -153,40 +191,50 @@ export default function PlayerScreen() {
           )}
         </View>
 
-        {current?.note ? (
+        {current?.note && !awaitingConfirm ? (
           <View style={styles.noteBox}>
             <Ionicons name="information-circle-outline" size={16} color={colors.muted} />
             <Text style={styles.noteText}>{current.note}</Text>
           </View>
         ) : null}
 
-        <Text style={styles.next}>
-          {next
-            ? `다음 · ${next.title} (${formatDuration(next.durationSec)})`
-            : session.currentRepeat < session.repeatCount
-              ? `이번 회차 마지막 · 다음 ${session.currentRepeat + 1}회차`
-              : '마지막 단계'}
-        </Text>
+        {!awaitingConfirm ? (
+          <Text style={styles.next}>
+            {next
+              ? `다음 · ${next.title} (${formatDuration(next.durationSec)})`
+              : session.currentRepeat < session.repeatCount
+                ? `이번 회차 마지막 · 다음 ${session.currentRepeat + 1}회차`
+                : '마지막 단계'}
+          </Text>
+        ) : null}
       </View>
 
       <View style={[styles.controls, { paddingBottom: insets.bottom + spacing.lg }]}>
         <Pressable
           style={styles.roundBtn}
-          disabled={isPreparing}
+          disabled={isPreparing || awaitingConfirm}
           onPress={() => previousStep()}
         >
-          <Ionicons name="play-back" size={24} color={isPreparing ? colors.muted : colors.ink} />
+          <Ionicons
+            name="play-back"
+            size={24}
+            color={isPreparing || awaitingConfirm ? colors.muted : colors.ink}
+          />
         </Pressable>
 
         <Pressable
           style={[styles.roundBtn, styles.roundBtnPrimary]}
-          disabled={isPreparing}
+          disabled={isPreparing || awaitingConfirm}
           onPress={() => (isPaused ? resumeSession() : pauseSession())}
         >
           <Ionicons name={isPaused ? 'play' : 'pause'} size={30} color="#FFFFFF" />
         </Pressable>
 
-        <Pressable style={styles.roundBtn} disabled={isPreparing} onPress={() => skipStep()}>
+        <Pressable
+          style={styles.roundBtn}
+          disabled={isPreparing}
+          onPress={onRequestNext}
+        >
           <Ionicons
             name="play-forward"
             size={24}
@@ -262,6 +310,29 @@ const styles = StyleSheet.create({
     marginVertical: spacing.lg,
     gap: spacing.sm,
     minHeight: 220,
+  },
+  confirmBox: {
+    width: '100%',
+    maxWidth: 300,
+    alignItems: 'center',
+    gap: spacing.md,
+    padding: spacing.lg,
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: radius.xl,
+  },
+  confirmMessage: {
+    ...typography.title3,
+    color: colors.ink,
+    textAlign: 'center',
+  },
+  confirmNext: {
+    ...typography.subhead,
+    color: colors.muted,
+    textAlign: 'center',
+  },
+  confirmBtn: {
+    alignSelf: 'stretch',
+    minWidth: 160,
   },
   prepBox: {
     width: 220,

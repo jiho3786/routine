@@ -29,7 +29,6 @@ export default function HomeScreen() {
   const {
     ready,
     routines,
-    createRoutine,
     startSession,
     deleteRoutine,
     reorderRoutines,
@@ -65,9 +64,8 @@ export default function HomeScreen() {
     );
   }
 
-  const onCreate = async () => {
-    const routine = await createRoutine();
-    router.push(`/routine/${routine.id}`);
+  const onCreate = () => {
+    router.push('/routine/new');
   };
 
   const onStart = async (routine: Routine) => {

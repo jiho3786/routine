@@ -37,6 +37,7 @@ describe('storage migrate (legacy → 신규 필드)', () => {
 
     expect(migrated.repeatCount).toBe(1);
     expect(migrated.currentRepeat).toBe(1);
+    expect(migrated.awaitingConfirm).toBe(false);
     expect(migrated.routineSnapshot.repeatCount).toBe(1);
     expect(migrated.routineSnapshot.schedule.enabled).toBe(false);
   });

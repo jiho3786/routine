@@ -55,6 +55,7 @@ function migrateSession(raw: Partial<Session>): Session {
     startedAt: raw.startedAt ?? new Date().toISOString(),
     endedAt: raw.endedAt,
     pauseStartedAt: raw.pauseStartedAt,
+    awaitingConfirm: raw.awaitingConfirm ?? false,
     repeatCount: raw.repeatCount ?? raw.routineSnapshot?.repeatCount ?? 1,
     currentRepeat: raw.currentRepeat ?? 1,
   };

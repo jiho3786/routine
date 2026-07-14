@@ -1,4 +1,8 @@
-import { cloneRoutine, routineEditFingerprint } from '../src/utils/routineDraft';
+import {
+  buildEmptyRoutine,
+  cloneRoutine,
+  routineEditFingerprint,
+} from '../src/utils/routineDraft';
 import type { Routine } from '../src/types';
 
 const sample: Routine = {
@@ -35,5 +39,13 @@ describe('routineDraft', () => {
     const copy = cloneRoutine(sample);
     copy.steps[0].title = '변경';
     expect(sample.steps.find((s) => s.id === copy.steps[0].id)?.title).not.toBe('변경');
+  });
+
+  test('buildEmptyRoutine은 저장 전 초안을 만든다', () => {
+    const draft = buildEmptyRoutine(0);
+    expect(draft.name).toBe('새 루틴');
+    expect(draft.steps).toEqual([]);
+    expect(draft.icon).toBe('timer-outline');
+    expect(draft.id).toMatch(/^routine_/);
   });
 });

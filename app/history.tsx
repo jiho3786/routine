@@ -185,7 +185,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   heatGrid: {
+    flexGrow: 1,
     flexDirection: 'row',
+    justifyContent: 'center',
     gap: 3,
   },
   heatColumn: {

@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button, Screen } from '../src/components/ui';
+import { SwipeToDeleteRow } from '../src/components/SwipeToDeleteRow';
 import { useStore } from '../src/store';
 import { ROUTINE_TEMPLATES, type RoutineTemplate } from '../src/templates';
 import { colors, radius, shadow, spacing, typography } from '../src/theme';
@@ -31,9 +32,17 @@ export default function TemplatesScreen() {
     deleteCustomTemplate,
   } = useStore();
 
-  const onUse = async (templateId: string) => {
-    const routine = await createRoutineFromTemplate(templateId);
-    if (routine) router.replace(`/routine/${routine.id}`);
+  const addToMyRoutines = (templateId: string, name: string) => {
+    Alert.alert(name, '내 루틴에 추가하겠습니까?', [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '추가',
+        onPress: async () => {
+          const routine = await createRoutineFromTemplate(templateId);
+          if (routine) router.replace('/');
+        },
+      },
+    ]);
   };
 
   const onCreate = async () => {
@@ -41,27 +50,14 @@ export default function TemplatesScreen() {
     router.push(`/template/${template.id}`);
   };
 
-  const onCustomLongPress = (template: UserTemplate) => {
-    Alert.alert(template.name, undefined, [
-      { text: '편집', onPress: () => router.push(`/template/${template.id}`) },
-      {
-        text: '루틴으로 만들기',
-        onPress: () => void onUse(template.id),
-      },
+  const onDeleteCustom = (template: UserTemplate) => {
+    Alert.alert('템플릿 삭제', `"${template.name}" 템플릿을 삭제할까요?`, [
+      { text: '취소', style: 'cancel' },
       {
         text: '삭제',
         style: 'destructive',
-        onPress: () =>
-          Alert.alert('템플릿 삭제', '이 템플릿을 삭제할까요?', [
-            { text: '취소', style: 'cancel' },
-            {
-              text: '삭제',
-              style: 'destructive',
-              onPress: () => void deleteCustomTemplate(template.id),
-            },
-          ]),
+        onPress: () => void deleteCustomTemplate(template.id),
       },
-      { text: '취소', style: 'cancel' },
     ]);
   };
 
@@ -116,31 +112,32 @@ export default function TemplatesScreen() {
           if (item.kind === 'custom') {
             const t = item.template;
             return (
-              <Pressable
-                style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
-                onPress={() => router.push(`/template/${t.id}`)}
-                onLongPress={() => onCustomLongPress(t)}
-              >
-                <View style={[styles.iconWrap, { backgroundColor: `${t.color}22` }]}>
-                  <Ionicons
-                    name={(t.icon as keyof typeof Ionicons.glyphMap) || 'bookmark-outline'}
-                    size={24}
-                    color={t.color}
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.title}>{t.name}</Text>
-                  {t.description ? <Text style={styles.desc}>{t.description}</Text> : null}
-                  <Text style={styles.meta}>{templateMeta(t.steps, t.repeatCount)}</Text>
-                </View>
+              <SwipeToDeleteRow onDelete={() => onDeleteCustom(t)}>
                 <Pressable
-                  hitSlop={8}
-                  style={styles.useBtn}
-                  onPress={() => void onUse(t.id)}
+                  style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+                  onPress={() => router.push(`/template/${t.id}`)}
                 >
-                  <Ionicons name="add" size={18} color="#fff" />
+                  <View style={[styles.iconWrap, { backgroundColor: `${t.color}22` }]}>
+                    <Ionicons
+                      name={(t.icon as keyof typeof Ionicons.glyphMap) || 'bookmark-outline'}
+                      size={24}
+                      color={t.color}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.title}>{t.name}</Text>
+                    {t.description ? <Text style={styles.desc}>{t.description}</Text> : null}
+                    <Text style={styles.meta}>{templateMeta(t.steps, t.repeatCount)}</Text>
+                  </View>
+                  <Pressable
+                    hitSlop={8}
+                    style={styles.useBtn}
+                    onPress={() => addToMyRoutines(t.id, t.name)}
+                  >
+                    <Ionicons name="add" size={18} color="#fff" />
+                  </Pressable>
                 </Pressable>
-              </Pressable>
+              </SwipeToDeleteRow>
             );
           }
 
@@ -148,7 +145,7 @@ export default function TemplatesScreen() {
           return (
             <Pressable
               style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
-              onPress={() => void onUse(t.id)}
+              onPress={() => addToMyRoutines(t.id, t.name)}
             >
               <View style={[styles.iconWrap, { backgroundColor: `${t.color}22` }]}>
                 <Ionicons name={t.icon} size={24} color={t.color} />

@@ -54,11 +54,18 @@ export default function TemplateEditorScreen() {
   const openMenu = () => {
     Alert.alert(template.name, undefined, [
       {
-        text: '루틴으로 만들기',
-        onPress: async () => {
-          const routine = await createRoutineFromTemplate(template.id);
-          if (routine) router.replace(`/routine/${routine.id}`);
-        },
+        text: '내 루틴에 추가',
+        onPress: () =>
+          Alert.alert(template.name, '내 루틴에 추가하겠습니까?', [
+            { text: '취소', style: 'cancel' },
+            {
+              text: '추가',
+              onPress: async () => {
+                const routine = await createRoutineFromTemplate(template.id);
+                if (routine) router.replace('/');
+              },
+            },
+          ]),
       },
       {
         text: '삭제',

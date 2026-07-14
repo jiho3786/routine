@@ -15,6 +15,7 @@ import DraggableFlatList, {
   ScaleDecorator,
 } from 'react-native-draggable-flatlist';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { IconPicker } from '../../src/components/IconPicker';
 import { OptionsMenuSheet } from '../../src/components/OptionsMenuSheet';
 import { StepEditorSheet } from '../../src/components/StepEditorSheet';
 import { RoutineOptionsSection } from '../../src/components/RoutineOptionsSection';
@@ -23,7 +24,9 @@ import { Button, Screen } from '../../src/components/ui';
 import { useStore } from '../../src/store';
 import { colors, radius, shadow, spacing, typography } from '../../src/theme';
 import type { Routine, Step } from '../../src/types';
+import { resolveAppIcon } from '../../src/utils/icons';
 import {
+  buildEmptyRoutine,
   cloneRoutine,
   routineEditFingerprint,
 } from '../../src/utils/routineDraft';
@@ -31,19 +34,19 @@ import { formatDuration, formatDurationHuman, routineTotalSec } from '../../src/
 
 export default function RoutineDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const isNew = id === 'new';
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const {
     routines,
+    createRoutine,
     updateRoutine,
     deleteRoutine,
     duplicateRoutine,
     saveRoutineAsTemplate,
-    startSession,
-    session,
   } = useStore();
 
-  const stored = routines.find((r) => r.id === id);
+  const stored = isNew ? undefined : routines.find((r) => r.id === id);
   const [draft, setDraft] = useState<Routine | null>(null);
   const [editingStep, setEditingStep] = useState<Step | null | undefined>(undefined);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -52,8 +55,22 @@ export default function RoutineDetailScreen() {
   const allowLeaveRef = useRef(false);
   const draftRef = useRef<Routine | null>(null);
   const isDirtyRef = useRef(false);
+  const isNewRef = useRef(isNew);
+  const newInitRef = useRef(false);
 
   useEffect(() => {
+    isNewRef.current = isNew;
+  }, [isNew]);
+
+  useEffect(() => {
+    if (isNew) {
+      if (newInitRef.current) return;
+      newInitRef.current = true;
+      const copy = buildEmptyRoutine(routines.length);
+      baselineRef.current = routineEditFingerprint(copy);
+      setDraft(copy);
+      return;
+    }
     if (!stored) {
       setDraft(null);
       baselineRef.current = '';
@@ -65,7 +82,7 @@ export default function RoutineDetailScreen() {
       baselineRef.current = routineEditFingerprint(copy);
       return copy;
     });
-  }, [stored]);
+  }, [isNew, stored, routines.length]);
 
   useEffect(() => {
     draftRef.current = draft;
@@ -83,10 +100,14 @@ export default function RoutineDetailScreen() {
   const persistDraft = useCallback(async () => {
     const current = draftRef.current;
     if (!current) return;
-    await updateRoutine(current);
+    if (isNewRef.current) {
+      await createRoutine(current);
+    } else {
+      await updateRoutine(current);
+    }
     baselineRef.current = routineEditFingerprint(current);
     isDirtyRef.current = false;
-  }, [updateRoutine]);
+  }, [createRoutine, updateRoutine]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('beforeRemove', (e) => {
@@ -126,11 +147,6 @@ export default function RoutineDetailScreen() {
     [draft?.steps]
   );
 
-  const isRunningOther =
-    !!session &&
-    (session.status === 'running' || session.status === 'paused') &&
-    session.routineId !== id;
-
   const patchDraft = useCallback((patch: Partial<Routine>) => {
     setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
   }, []);
@@ -152,7 +168,7 @@ export default function RoutineDetailScreen() {
     ]);
   };
 
-  if (!stored) {
+  if (!isNew && !stored) {
     return (
       <Screen style={styles.center}>
         <Text style={styles.missing}>루틴을 찾을 수 없습니다.</Text>
@@ -228,60 +244,28 @@ export default function RoutineDetailScreen() {
     },
   ];
 
-  const onStart = async () => {
-    if (steps.length === 0) {
-      Alert.alert('단계 필요', '최소 1개 단계를 추가한 뒤 시작하세요.');
-      return;
-    }
-    if (isRunningOther) {
-      Alert.alert('다른 루틴 실행 중', '진행 중인 세션을 종료한 뒤 시작하세요.');
-      return;
-    }
-    if (isDirty) {
-      await persistDraft();
-    }
-    const started = await startSession(draft.id);
-    if (started) {
-      await leaveAfter(() => router.push('/player'));
-    }
+  const onSave = async () => {
+    await persistDraft();
+    await leaveAfter(() => router.replace('/'));
   };
 
   return (
     <Screen>
       <Stack.Screen
         options={{
-          title: '루틴 편집',
-          headerRight: () => (
-            <Pressable
-              hitSlop={12}
-              onPress={() => setMenuOpen(true)}
-              style={{ paddingHorizontal: 8 }}
-            >
-              <Ionicons name="ellipsis-horizontal" size={22} color={colors.ink} />
-            </Pressable>
-          ),
+          title: isNew ? '새 루틴' : '루틴 편집',
+          headerRight: isNew
+            ? undefined
+            : () => (
+                <Pressable
+                  hitSlop={12}
+                  onPress={() => setMenuOpen(true)}
+                  style={{ paddingHorizontal: 8 }}
+                >
+                  <Ionicons name="ellipsis-horizontal" size={22} color={colors.ink} />
+                </Pressable>
+              ),
         }}
-      />
-
-      <View style={styles.headerBlock}>
-        <TextInput
-          value={draft.name}
-          onChangeText={(name) => patchDraft({ name })}
-          style={styles.nameInput}
-          placeholder="루틴 이름"
-          placeholderTextColor={colors.muted}
-        />
-        <Text style={styles.meta}>
-          총 {formatDurationHuman(routineTotalSec(steps) * draft.repeatCount)} · {steps.length}
-          단계
-          {draft.repeatCount > 1 ? ` · ${draft.repeatCount}회 반복` : ''}
-          {isDirty ? ' · 수정됨' : ''}
-        </Text>
-      </View>
-
-      <RoutineOptionsSection
-        routine={draft}
-        onChange={(patch) => patchDraft(patch)}
       />
 
       <DraggableFlatList
@@ -294,10 +278,53 @@ export default function RoutineDetailScreen() {
         }}
         containerStyle={{ flex: 1 }}
         contentContainerStyle={{
-          paddingHorizontal: spacing.md,
           paddingBottom: 120 + insets.bottom,
           gap: spacing.sm,
         }}
+        keyboardShouldPersistTaps="handled"
+        ListHeaderComponent={
+          <View>
+            <View style={styles.headerBlock}>
+              <View style={styles.titleRow}>
+                <View style={[styles.previewIcon, { backgroundColor: `${draft.color}22` }]}>
+                  <Ionicons
+                    name={resolveAppIcon(draft.icon)}
+                    size={28}
+                    color={draft.color}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <TextInput
+                    value={draft.name}
+                    onChangeText={(name) => patchDraft({ name })}
+                    style={styles.nameInput}
+                    placeholder="루틴 이름"
+                    placeholderTextColor={colors.muted}
+                  />
+                  <Text style={styles.meta}>
+                    총 {formatDurationHuman(routineTotalSec(steps) * draft.repeatCount)} ·{' '}
+                    {steps.length}단계
+                    {draft.repeatCount > 1 ? ` · ${draft.repeatCount}회 반복` : ''}
+                    {isDirty ? ' · 수정됨' : ''}
+                  </Text>
+                </View>
+              </View>
+
+              <IconPicker
+                value={draft.icon}
+                color={draft.color}
+                onChange={(icon) => patchDraft({ icon })}
+              />
+            </View>
+
+            <RoutineOptionsSection
+              routine={draft}
+              onChange={(patch) => patchDraft(patch)}
+            />
+
+            <Text style={styles.sectionLabel}>단계</Text>
+          </View>
+        }
         ListFooterComponent={
           <Pressable style={styles.addStep} onPress={() => setEditingStep(null)}>
             <Ionicons name="add" size={20} color={colors.accentDeep} />
@@ -306,37 +333,41 @@ export default function RoutineDetailScreen() {
         }
         renderItem={({ item, drag, isActive }: RenderItemParams<Step>) => (
           <ScaleDecorator>
-            <SwipeToDeleteRow onDelete={() => onDeleteStep(item)}>
-              <Pressable
-                onLongPress={drag}
-                disabled={isActive}
-                onPress={() => setEditingStep(item)}
-                style={[styles.stepCard, isActive && styles.stepActive]}
-              >
-                <Pressable onPressIn={drag} hitSlop={8} style={styles.handle}>
-                  <Ionicons name="menu" size={22} color={colors.muted} />
+            <View style={styles.stepPad}>
+              <SwipeToDeleteRow onDelete={() => onDeleteStep(item)}>
+                <Pressable
+                  onLongPress={drag}
+                  disabled={isActive}
+                  onPress={() => setEditingStep(item)}
+                  style={[styles.stepCard, isActive && styles.stepActive]}
+                >
+                  <Pressable onPressIn={drag} hitSlop={8} style={styles.handle}>
+                    <Ionicons name="menu" size={22} color={colors.muted} />
+                  </Pressable>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.stepTitle}>{item.title}</Text>
+                    <Text style={styles.stepTime}>{formatDuration(item.durationSec)}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={colors.muted} />
                 </Pressable>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.stepTitle}>{item.title}</Text>
-                  <Text style={styles.stepTime}>{formatDuration(item.durationSec)}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-              </Pressable>
-            </SwipeToDeleteRow>
+              </SwipeToDeleteRow>
+            </View>
           </ScaleDecorator>
         )}
       />
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
-        <Button title="시작" onPress={onStart} />
+        <Button title="저장" onPress={onSave} />
       </View>
 
-      <OptionsMenuSheet
-        visible={menuOpen}
-        title={draft.name}
-        items={menuItems}
-        onClose={() => setMenuOpen(false)}
-      />
+      {!isNew ? (
+        <OptionsMenuSheet
+          visible={menuOpen}
+          title={draft.name}
+          items={menuItems}
+          onClose={() => setMenuOpen(false)}
+        />
+      ) : null}
 
       <StepEditorSheet
         visible={editingStep !== undefined}
@@ -375,6 +406,19 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+  },
+  previewIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+  },
   nameInput: {
     ...typography.largeTitle,
     color: colors.ink,
@@ -384,6 +428,19 @@ const styles = StyleSheet.create({
     ...typography.subhead,
     color: colors.muted,
     marginTop: 2,
+  },
+  sectionLabel: {
+    ...typography.footnote,
+    fontWeight: '600',
+    color: colors.muted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginTop: spacing.xs,
+    marginBottom: spacing.sm,
+    marginHorizontal: spacing.md + spacing.xs,
+  },
+  stepPad: {
+    paddingHorizontal: spacing.md,
   },
   stepCard: {
     backgroundColor: colors.surface,
@@ -414,6 +471,7 @@ const styles = StyleSheet.create({
   },
   addStep: {
     marginTop: spacing.sm,
+    marginHorizontal: spacing.md,
     borderRadius: radius.lg,
     backgroundColor: colors.surface,
     paddingVertical: 14,

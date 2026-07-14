@@ -8,32 +8,35 @@ alwaysApply: true
 ## 현재 상태
 로컬 루틴 순차 타이머 MVP. Expo SDK 57. pnpm. 서버는 에이전트가 켜지 않음 → 사용자에게 `pnpm start` / `pnpm start -c` 요청.
 원격: `https://github.com/jiho3786/routine` (`master` tracking `origin/master`).
+**Git**: `fda1a26`「흐름변경」까지 **푸시됨**. 이후 작업은 **로컬에만** 있음 → `master`가 `origin/master`보다 **1커밋 앞서 있었던 상태에서 추가 미커밋 변경** 있음. 푸시·커밋은 사용자 요청 시에만.
 
-## 이 세션에서 완료한 것
-1. **버튼/accent** 파랑 → 블랙 (`src/theme.ts`)
-2. **기능**: 실행 기록·스트릭, 기본 템플릿, 루틴 반복 횟수, 예약 알림
-3. **웹 SVG 버그 수정**: Circle에 `rotation`/`origin` 금지 → `ringStartAtTopTransform` (`svgRing.ts`)
-4. **TDD**: jest-expo, `__tests__/` **36 tests** 통과 (`pnpm test`)
-5. **AGENTS.md** MVP 기준으로 재작성
-6. **커스텀 템플릿**: 생성/편집/삭제, 루틴→템플릿 저장 (`customTemplates`, `app/template/[id].tsx`)
-7. **시간 UI**: `DurationPicker` — 분·초 세로 드래그, ±1분/±10초, 프리셋 **누적 더하기** (+30분·+60분 포함, 4×2 그리드 정렬)
-8. **Ionicons**: `import Ionicons from '@expo/vector-icons/Ionicons'` (named import 금지). Android 재발 시 `pnpm start -c`
-9. **홈 스와이프 삭제**: `SwipeToDeleteRow` — 왼쪽 스와이프 → 오렌지 휴지통 → 확인 후 삭제
-10. **홈 드래그 순서**: `DraggableFlatList` + `reorderRoutines`
-11. **Git**: 초기 커밋 + push (`jiho3786/routine`). GitHub 로그인은 `jiho3786` (이전 `jiho123` URL은 없음)
-12. **템플릿/루틴 아이콘**: `Routine.icon` + `IconPicker`(가로 스크롤). 템플릿→루틴 아이콘 복사. 홈 카드에 아이콘 표시. 마이그레이션 기본값 `timer-outline`
-13. **루틴 편집 UX**
-    - 단계 스와이프 삭제 (`SwipeToDeleteRow`)
-    - `...` 메뉴 → `OptionsMenuSheet` (상단 X로 닫기, 하단 취소 문구 없음)
-    - **draft 편집**: 변경 후 뒤로가기 시 「저장 / 저장 안 함 / 취소」 (`routineDraft.ts`, `beforeRemove`)
-14. **템플릿 편집 레이아웃**: 헤더(아이콘·반복)를 `ListHeaderComponent`로 넣어 스크롤 → **단계 추가**가 가려지지 않음
-15. **웹 워닝 수정**: `shadow*` → `boxShadow` (`theme`/`WebPhoneFrame`); `pointerEvents` → style; Swipeable `useNativeAnimations={Platform.OS !== 'web'}`
+**사용자 메모**: 이어서 **새 창에서** 열 예정. 새 채팅은 이 파일 + `AGENTS.md`를 우선 본다. 앱은 `pnpm start -c` 권장.
+
+## 이 세션에서 완료·푸시된 것 (요약)
+1. accent 블랙, 기록·스트릭, 템플릿, 반복, 예약 알림, SVG 웹 수정, TDD
+2. 커스텀 템플릿, DurationPicker, IconPicker(가로·2행), 홈 스와이프/드래그
+3. draft 편집, OptionsMenuSheet, Ionicons default import
+4. **화면 꺼짐 방지** (`expo-keep-awake`), **준비 카운트다운**, **단계 메모**, **히트맵·실천율** → 커밋 `d70fd5f` push
+5. 템플릿 편집 「완료」→ `/templates`, 양방향 스와이프 → 커밋 `fda1a26` (push 여부는 status로 재확인)
+
+## 미커밋 작업 (새 창에서 이어갈 것)
+working tree에 남아 있을 가능성 높음 — `git status`로 확인:
+
+1. **템플릿 + 버튼** → 「내 루틴에 추가하겠습니까?」→ 확인 시 **홈(`/`)에만 추가** (루틴 편집으로 안 감). `app/templates.tsx`, `app/template/[id].tsx`
+2. **내 템플릿** 카드 `SwipeToDeleteRow` 스와이프 삭제
+3. 휴지통 아이콘색 **오렌지 → 검정** (`SwipeToDeleteRow`)
+4. 루틴 편집 하단 **「시작」→「저장」** 후 홈 (`app/routine/[id].tsx`) — 실행은 홈 재생 버튼만
+5. **다음 단계 확인**: 타이머 종료·스킵 시 `awaitingConfirm` → 「다음 단계로 넘어가시겠습니까?」/「예」 (`Session.awaitingConfirm`, `store.confirmAdvance`, `app/player.tsx`). 마지막 단계는 「루틴을 완료하시겠습니까?」
+6. 저장 마이그레이션: `awaitingConfirm` 기본 `false` (`storage.ts` + 테스트)
+
+테스트: 직전 기준 **39 tests** 통과 (`pnpm test`). 새 창에서 로직 바꾼 뒤 재실행.
 
 ## 아직 안 한 것 / 다음에 이을 때
-- 최근 UI/아이콘/draft 변경분 **추가 커밋·푸시 여부**는 사용자 요청 시에만
-- `assets/icon.png` 등은 아직 Expo 기본 로고 → 교체 원하면 에셋만 바꾸면 됨 (Expo Go 앱 아이콘 자체는 불가)
-- README/`docs/WIREFRAMES.md` 구식 가능 → **코드·AGENTS.md 우선**
-- 새 창에서 앱 켤 때: `pnpm start -c` 권장
+- 위 미커밋분 **커밋·푸시**는 사용자가 요청할 때만
+- 음성(TTS)·백업·즐겨찾기·검색은 후보로만 둠 (요청 전 추가 금지)
+- `assets/icon.png` Expo 기본 로고
+- `OptionsMenuSheet.tsx`의 `StyleSheet.absoluteFillObject` TS 오류(기존) — 요청 시 `absoluteFill`로 수정
+- README/`docs/WIREFRAMES.md` 구식 → **코드·AGENTS.md 우선**
 
 ## 작업 시 주의
 - `@AGENTS.md` / `CLAUDE.md` 준수
@@ -42,3 +45,4 @@ alwaysApply: true
 - 저장 스키마 변경 시 `storage.ts` 마이그레이션 + 테스트
 - 아이콘은 `@expo/vector-icons/Ionicons` default import 유지
 - 루틴 편집은 draft 저장 확인 흐름 유지 (즉시 `updateRoutine` 되돌리지 말 것)
+- 플레이어 단계 전이는 **확인(예) 후** `confirmAdvance` — 자동 `advanceOrComplete`로 되돌리지 말 것

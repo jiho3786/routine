@@ -30,7 +30,8 @@ type StoreContextValue = {
   settings: Settings;
   completions: CompletionRecord[];
   customTemplates: UserTemplate[];
-  createRoutine: () => Promise<Routine>;
+  /** 초안을 넘기면 그 내용으로 추가. 없으면 빈 루틴을 즉시 추가한다. */
+  createRoutine: (draft?: Routine) => Promise<Routine>;
   createRoutineFromTemplate: (templateId: string) => Promise<Routine | null>;
   createCustomTemplate: () => Promise<UserTemplate>;
   saveRoutineAsTemplate: (routineId: string) => Promise<UserTemplate | null>;
@@ -48,6 +49,7 @@ type StoreContextValue = {
   pauseSession: () => Promise<void>;
   resumeSession: () => Promise<void>;
   skipStep: () => Promise<void>;
+  confirmAdvance: () => Promise<void>;
   previousStep: () => Promise<void>;
   stopSession: () => Promise<void>;
   clearCompletedSession: () => Promise<void>;
@@ -141,13 +143,34 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const holdForConfirm = useCallback(
+    async (fromSession: Session) => {
+      if (fromSession.awaitingConfirm) return;
+      endsAtRef.current = null;
+      setTickRemaining(fromSession.remainingSec);
+      const held: Session = {
+        ...fromSession,
+        status: 'paused',
+        pauseStartedAt: new Date().toISOString(),
+        awaitingConfirm: true,
+      };
+      await persist({ ...dataRef.current, session: held });
+      await cancelScheduledNotifications();
+      await playStepTransitionFeedback(dataRef.current.settings);
+    },
+    [persist]
+  );
+
   const advanceOrComplete = useCallback(
     async (fromSession: Session) => {
       if (advancingRef.current) return;
       advancingRef.current = true;
       try {
-        await playStepTransitionFeedback(dataRef.current.settings);
-        const result = advanceSessionAfterStepEnd(fromSession);
+        const result = advanceSessionAfterStepEnd({
+          ...fromSession,
+          awaitingConfirm: false,
+          status: 'running',
+        });
 
         if (result.kind === 'completed') {
           const steps = sortSteps(fromSession.routineSnapshot.steps);
@@ -212,8 +235,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
       if (remaining <= 0) {
         const current = dataRef.current.session;
-        if (current && current.status === 'running') {
-          void advanceOrComplete({ ...current, remainingSec: 0 });
+        if (current && current.status === 'running' && !current.awaitingConfirm) {
+          void holdForConfirm({ ...current, remainingSec: 0 });
         }
       } else if (dataRef.current.session?.status === 'running') {
         const snapped = dataRef.current.session;
@@ -232,7 +255,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         intervalRef.current = null;
       }
     };
-  }, [ready, data.session?.id, data.session?.status, data.session?.currentStepIndex, advanceOrComplete, flushRemainingFromClock, persist]);
+  }, [ready, data.session?.id, data.session?.status, data.session?.currentStepIndex, holdForConfirm, flushRemainingFromClock, persist]);
 
   useEffect(() => {
     const onChange = (state: AppStateStatus) => {
@@ -243,7 +266,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (remaining == null) return;
       setTickRemaining(remaining);
       if (remaining <= 0) {
-        void advanceOrComplete({ ...session, remainingSec: 0 });
+        void holdForConfirm({ ...session, remainingSec: 0 });
       } else {
         void persist({
           ...dataRef.current,
@@ -253,27 +276,32 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     };
     const sub = AppState.addEventListener('change', onChange);
     return () => sub.remove();
-  }, [advanceOrComplete, flushRemainingFromClock, persist]);
+  }, [holdForConfirm, flushRemainingFromClock, persist]);
 
-  const createRoutine = useCallback(async () => {
-    const routine: Routine = {
-      id: createId('routine'),
-      name: '새 루틴',
-      color: ROUTINE_COLORS[dataRef.current.routines.length % ROUTINE_COLORS.length],
-      icon: 'timer-outline',
-      updatedAt: new Date().toISOString(),
-      steps: [],
-      repeatCount: 1,
-      schedule: defaultSchedule(),
-    };
-    const next = {
-      ...dataRef.current,
-      routines: [routine, ...dataRef.current.routines],
-    };
-    await persist(next);
-    await refreshReminders(next.routines);
-    return routine;
-  }, [persist, refreshReminders]);
+  const createRoutine = useCallback(
+    async (draft?: Routine) => {
+      const routine: Routine = draft
+        ? { ...draft, updatedAt: new Date().toISOString() }
+        : {
+            id: createId('routine'),
+            name: '새 루틴',
+            color: ROUTINE_COLORS[dataRef.current.routines.length % ROUTINE_COLORS.length],
+            icon: 'timer-outline',
+            updatedAt: new Date().toISOString(),
+            steps: [],
+            repeatCount: 1,
+            schedule: defaultSchedule(),
+          };
+      const next = {
+        ...dataRef.current,
+        routines: [routine, ...dataRef.current.routines],
+      };
+      await persist(next);
+      await refreshReminders(next.routines);
+      return routine;
+    },
+    [persist, refreshReminders]
+  );
 
   const createRoutineFromTemplate = useCallback(
     async (templateId: string) => {
@@ -505,6 +533,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         startedAt: new Date().toISOString(),
         repeatCount,
         currentRepeat: 1,
+        awaitingConfirm: false,
       };
       endsAtRef.current = Date.now() + first.durationSec * 1000;
       setTickRemaining(first.durationSec);
@@ -518,6 +547,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const pauseSession = useCallback(async () => {
     const session = dataRef.current.session;
     if (!session || session.status !== 'running') return;
+    if (session.awaitingConfirm) return;
     const remaining = flushRemainingFromClock() ?? session.remainingSec;
     endsAtRef.current = null;
     setTickRemaining(remaining);
@@ -534,21 +564,40 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const resumeSession = useCallback(async () => {
     const session = dataRef.current.session;
     if (!session || session.status !== 'paused') return;
+    if (session.awaitingConfirm) return;
     endsAtRef.current = Date.now() + session.remainingSec * 1000;
     setTickRemaining(session.remainingSec);
     const running: Session = {
       ...session,
       status: 'running',
       pauseStartedAt: undefined,
+      awaitingConfirm: false,
     };
     await persist({ ...dataRef.current, session: running });
     await syncNotificationForSession(running);
   }, [persist, syncNotificationForSession]);
 
+  /** 스킵/다음 요청 → 확인 대기 (예 누르기 전엔 진행 안 함) */
   const skipStep = useCallback(async () => {
     const session = dataRef.current.session;
     if (!session || (session.status !== 'running' && session.status !== 'paused')) return;
-    await advanceOrComplete({ ...session, remainingSec: 0, status: 'running' });
+    if (session.awaitingConfirm) return;
+    const remaining =
+      session.status === 'running'
+        ? (flushRemainingFromClock() ?? session.remainingSec)
+        : session.remainingSec;
+    await holdForConfirm({ ...session, remainingSec: remaining, status: 'paused' });
+  }, [flushRemainingFromClock, holdForConfirm]);
+
+  const confirmAdvance = useCallback(async () => {
+    const session = dataRef.current.session;
+    if (!session?.awaitingConfirm) return;
+    await advanceOrComplete({
+      ...session,
+      remainingSec: 0,
+      status: 'running',
+      awaitingConfirm: false,
+    });
   }, [advanceOrComplete]);
 
   const previousStep = useCallback(async () => {
@@ -564,6 +613,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       currentStepIndex: prevIndex,
       remainingSec: prev.durationSec,
       pauseStartedAt: undefined,
+      awaitingConfirm: false,
     };
     endsAtRef.current = Date.now() + prev.durationSec * 1000;
     setTickRemaining(prev.durationSec);
@@ -611,6 +661,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       pauseSession,
       resumeSession,
       skipStep,
+      confirmAdvance,
       previousStep,
       stopSession,
       clearCompletedSession,
@@ -641,6 +692,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       pauseSession,
       resumeSession,
       skipStep,
+      confirmAdvance,
       previousStep,
       stopSession,
       clearCompletedSession,

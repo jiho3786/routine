@@ -30,6 +30,7 @@ export function advanceSessionAfterStepEnd(from: Session): AdvanceResult {
           currentRepeat: from.currentRepeat + 1,
           remainingSec: first.durationSec,
           status: 'running',
+          awaitingConfirm: false,
         },
       };
     }
@@ -41,6 +42,7 @@ export function advanceSessionAfterStepEnd(from: Session): AdvanceResult {
         status: 'completed',
         remainingSec: 0,
         endedAt: new Date().toISOString(),
+        awaitingConfirm: false,
       },
     };
   }
@@ -53,6 +55,7 @@ export function advanceSessionAfterStepEnd(from: Session): AdvanceResult {
       currentStepIndex: nextIndex,
       remainingSec: nextStep.durationSec,
       status: 'running',
+      awaitingConfirm: false,
     },
   };
 }
